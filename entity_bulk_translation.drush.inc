@@ -39,9 +39,9 @@ function _drush_entity_bulk_translation_validate_language($languages, $langcode)
 }
 
 /**
- * Translate entties from a source language to target language
+ * Translate entities from a source language to target language
  * @param string $entity_type The entity_type
- * @param string $bundles A comma seperated list of bundles or all for all language
+ * @param string $bundles A comma separated list of bundles or all for all language
  * @param string $from_language The source language
  * @param string $to_language The target language
  */
