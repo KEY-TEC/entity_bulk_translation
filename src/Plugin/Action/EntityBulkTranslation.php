@@ -105,7 +105,7 @@ class EntityBulkTranslation extends ConfigurableActionBase implements ContainerF
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $languages = \Drupal::languageManager()->getLanguages();
     $lngOptions = array();
-    foreach($languages as $language) {
+    foreach ($languages as $language) {
       $lngOptions[$language->getId()] = $language->getName();
     }
 
