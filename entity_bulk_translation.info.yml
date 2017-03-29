@@ -1,0 +1,4 @@
+name: Entity Bulk Translation
+description: Create multiple translations of content entities like nodes and media via action.
+type: module
+core: 8.x

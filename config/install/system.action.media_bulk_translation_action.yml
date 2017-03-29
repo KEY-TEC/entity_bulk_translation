@@ -1,0 +1,10 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - media_entity
+id: media_bulk_translation_action
+label: 'Create Translation'
+type: media
+plugin: entity_bulk_translation_action
+configuration: {  }

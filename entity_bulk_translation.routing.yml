@@ -1,0 +1,6 @@
+entity_bulk_translation.translation_action_form:
+  path: '/admin/content/entitybulktranslation'
+  defaults:
+    _form: '\Drupal\entity_bulk_translation\Form\TranslationActionForm'
+  requirements:
+    _permission: 'administer nodes'
