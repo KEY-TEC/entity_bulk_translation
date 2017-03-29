@@ -1,5 +1,15 @@
 {
   "name": "KEY-TEC/entity_bulk_translation",
+  "description": "Create multiple translations of content entities like nodes and media via action.",
   "type": "drupal-module",
-  "minimum-stability": "dev"
+  "minimum-stability": "dev",
+  "license": "GPL-3.0+",
+  "authors": [
+    {
+      "name": "LFilewalker"
+    },
+    {
+      "name": "Christian Wiedemann"
+    }
+  ]
 }

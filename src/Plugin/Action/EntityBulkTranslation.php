@@ -10,7 +10,7 @@ use Drupal\user\PrivateTempStoreFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Unpublishes a comment containing certain keywords.
+ * Create translations for content entities.
  *
  * @Action(
  *   id = "entity_bulk_translation_action",
@@ -104,15 +104,15 @@ class EntityBulkTranslation extends ConfigurableActionBase implements ContainerF
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $languages = \Drupal::languageManager()->getLanguages();
-    $lngOptions = array();
+    $lng_options = array();
     foreach ($languages as $language) {
-      $lngOptions[$language->getId()] = $language->getName();
+      $lng_options[$language->getId()] = $language->getName();
     }
 
     $form['fromLanguage'] = array(
       '#title' => $this->t('Source Language'),
       '#type' => 'select',
-      '#options' => $lngOptions,
+      '#options' => $lng_options,
       '#description' => $this->t('Select the language you want the translation to be created from. If the language does not exist on the entity, it will be skipped.'),
       '#default_value' => $this->configuration['fromLanguage'],
     );
@@ -120,7 +120,7 @@ class EntityBulkTranslation extends ConfigurableActionBase implements ContainerF
     $form['toLanguage'] = array(
       '#title' => $this->t('Target Language'),
       '#type' => 'select',
-      '#options' => $lngOptions,
+      '#options' => $lng_options,
       '#description' => $this->t('Select the language you want the translation to be create for. If a translation for this language already exists, it will be skipped.'),
       '#default_value' => $this->configuration['fromLanguage'],
     );

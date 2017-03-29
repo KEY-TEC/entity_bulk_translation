@@ -1,6 +1,7 @@
 <?php
 /**
- * @file Contains developer commands for food.
+ * @file
+ * Drush commands for entity bulk translations.
  */
 
 /**
@@ -23,7 +24,11 @@ function entity_bulk_translation_drush_command() {
   return $items;
 }
 
-
+/**
+ * Validation helper function for the translation drush command
+ * @param \Drupal\Core\Language\LanguageInterface[] $languages List of all valid languages.
+ * @param string $langcode Language to check against e.g. en
+*/
 function _drush_entity_bulk_translation_validate_language($languages, $langcode) {
   if (!isset($languages[$langcode])) {
     return drush_set_error('DRUSH_EBT', dt('Language "@language" does not exist. Available languages are: @languages', array(
@@ -35,13 +40,12 @@ function _drush_entity_bulk_translation_validate_language($languages, $langcode)
 
 /**
  * Translate entties from a source language to target language
- * @param $entity_type The entity_type
- * @param $bundles A comma seperated list of bundles or all for all language
- * @param $from_language The source language
- * @param $to_language The target language
+ * @param string $entity_type The entity_type
+ * @param string $bundles A comma seperated list of bundles or all for all language
+ * @param string $from_language The source language
+ * @param string $to_language The target language
  */
 function drush_entity_bulk_translation_translate($entity_type, $bundles, $from_language, $to_language) {
-
   $languages = Drupal::languageManager()->getLanguages();
   if (!_drush_entity_bulk_translation_validate_language($languages, $from_language) || !_drush_entity_bulk_translation_validate_language($languages, $to_language)) {
     exit(1);
@@ -92,4 +96,3 @@ function drush_entity_bulk_translation_translate($entity_type, $bundles, $from_l
     drush_print(t('Skipped @count translations.', array('@count' => $skipped_entities)));
   }
 }
-
