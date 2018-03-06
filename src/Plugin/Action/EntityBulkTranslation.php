@@ -1,156 +1,256 @@
 <?php
 
-namespace Drupal\entity_bulk_translation\Plugin\Action;
+namespace Drupal\entity_bulk_translation\Form;
 
-use Drupal\Core\Action\ConfigurableActionBase;
+use Drupal\Core\Entity\ContentEntityBase;
+use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
-use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
 use Drupal\user\PrivateTempStoreFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Create translations for content entities.
- *
- * @Action(
- *   id = "entity_bulk_translation_action",
- *   label = @Translation("Creates multiple translations of entities"),
- *   type = "entity",
- *   confirm_form_route_name = "entity_bulk_translation.translation_action_form"
- * )
+ * Configuration form for the entity bulk translation action.
  */
-class EntityBulkTranslation extends ConfigurableActionBase implements ContainerFactoryPluginInterface {
+class TranslationActionForm extends ConfirmFormBase {
 
   /**
-   * The tempstore object.
+   * The array of entites to process.
    *
-   * @var \Drupal\user\SharedTempStore
+   * @var []\Drupal\Core\Entity\EntityInterface
    */
-  protected $tempStore;
+  protected $entityInfo = array();
 
   /**
-   * The current user.
+   * The tempstore factory.
    *
-   * @var \Drupal\Core\Session\AccountInterface
+   * @var \Drupal\user\PrivateTempStoreFactory
    */
-  protected $currentUser;
+  protected $tempStoreFactory;
 
   /**
-   * Constructs a new EntityBulkTranslation object.
+   * The node storage.
    *
-   * @param array $configuration
-   *   A configuration array containing information about the plugin instance.
-   * @param string $plugin_id
-   *   The plugin ID for the plugin instance.
-   * @param mixed $plugin_definition
-   *   The plugin implementation definition.
+   * @var \Drupal\Core\Entity\EntityStorageInterface
+   */
+  protected $manager;
+
+  /**
+   * Status counter flag for created translations.
+   *
+   * @var integer
+  */
+  private $isTranslationCreated = 1;
+
+  /**
+   * Status counter flag for skipped entities when the translation already exists.
+   *
+   * @var integer
+   */
+  private $isTranslationExists = 2;
+
+  /**
+   * Status counter flag for skipped entities where required source translation didn't exist.
+   *
+   * @var integer
+   */
+  private $isTranslationSourceNotExists = 3;
+
+  /**
+   * Constructs a TranslationActionForm form object.
+   *
    * @param \Drupal\user\PrivateTempStoreFactory $temp_store_factory
    *   The tempstore factory.
-   * @param AccountInterface $current_user
-   *   Current user.
+   * @param \Drupal\Core\Entity\EntityManagerInterface $manager
+   *   The entity manager.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, PrivateTempStoreFactory $temp_store_factory, AccountInterface $current_user) {
-    $this->currentUser = $current_user;
-    $this->tempStore = $temp_store_factory->get('entity_bulk_translation_action');
-
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
+  public function __construct(PrivateTempStoreFactory $temp_store_factory, EntityManagerInterface $manager) {
+    $this->tempStoreFactory = $temp_store_factory;
+    $this->storage = $manager->getStorage('node');
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+  public static function create(ContainerInterface $container) {
     return new static(
-      $configuration,
-      $plugin_id,
-      $plugin_definition,
       $container->get('user.private_tempstore'),
-      $container->get('current_user')
+      $container->get('entity.manager')
     );
   }
 
   /**
    * {@inheritdoc}
    */
-  public function executeMultiple(array $entities) {
-    $info = [];
-    /** @var \Drupal\Core\Entity\EntityInterface $entity */
-    foreach ($entities as $entity) {
-      $info[$entity->id()] = $entity;
-    }
-    $this->tempStore->set($this->currentUser->id(), $info);
+  public function getFormId() {
+    return 'translation_action_form';
   }
 
   /**
    * {@inheritdoc}
    */
-  public function execute($object = NULL) {
-    $this->executeMultiple(array($object));
+  public function getQuestion() {
+    return $this->t('Translation Configuration');
   }
 
   /**
    * {@inheritdoc}
    */
-  public function defaultConfiguration() {
-    return array(
-      'fromLanguage' => NULL,
-      'toLanguage' => NULL,
-      'forceTranslation' => FALSE,
-    );
+  public function getCancelUrl() {
+    return new Url('system.admin_content');
   }
 
   /**
    * {@inheritdoc}
    */
-  public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
+  public function getConfirmText() {
+    return t('Create Translation');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function buildForm(array $form, FormStateInterface $form_state) {
+    $this->entityInfo = $this->tempStoreFactory->get('entity_bulk_translation_action')->get(\Drupal::currentUser()->id());
     $languages = \Drupal::languageManager()->getLanguages();
     $lng_options = array();
-    foreach ($languages as $language) {
+    foreach($languages as $language) {
       $lng_options[$language->getId()] = $language->getName();
     }
 
-    $form['fromLanguage'] = array(
+    $items = [];
+    foreach ($this->entityInfo as $id => $node) {
+      $items[$id] = $node->label();
+    }
+
+    $form['nodes_count'] = array('#markup' => 'Selected '.count($this->entityInfo).' (without translation duplicates)');
+    $form['nodes'] = array(
+      '#theme' => 'item_list',
+      '#items' => $items,
+    );
+
+    $form['from_language'] = array(
       '#title' => $this->t('Source Language'),
       '#type' => 'select',
       '#options' => $lng_options,
       '#description' => $this->t('Select the language you want the translation to be created from. If the language does not exist on the entity, it will be skipped.'),
-      '#default_value' => $this->configuration['fromLanguage'],
     );
 
-    $form['toLanguage'] = array(
+    $form['to_language'] = array(
       '#title' => $this->t('Target Language'),
       '#type' => 'select',
       '#options' => $lng_options,
       '#description' => $this->t('Select the language you want the translation to be create for. If a translation for this language already exists, it will be skipped.'),
-      '#default_value' => $this->configuration['fromLanguage'],
     );
 
-    $form['forceTranslation'] = array(
+    $form['force_translation'] = array(
       '#title' => $this->t('Delete existing translation'),
       '#type' => 'checkbox',
       '#description' => $this->t('Check this option to delete and recreate a translation instead of skipping.'),
-      '#default_value' => $this->configuration['forceTranslation'],
     );
+
+    $form = parent::buildForm($form, $form_state);
     return $form;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
-    $this->configuration['fromLanguage'] = $form_state->getValue('fromLanguage');
-    $this->configuration['toLanguage'] = $form_state->getValue('toLanguage');
-    $this->configuration['forceTranslation'] = $form_state->getValue('forceTranslation');
+  public function validateForm(array &$form, FormStateInterface $form_state) {
+    $values = $form_state->getValues();
+    if($values['from_language'] == $values['to_language']) {
+      $form_state->setErrorByName('toLanguage', $this->t('The source language and target language cannot be the same.'));
+    }
   }
 
   /**
    * {@inheritdoc}
    */
-  public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE) {
-    /** @var $object = \Drupal\Core\Entity */
-    $result = $object->access('update', $account, TRUE)
-      ->andIf($object->status->access('edit', $account, TRUE));
+  public function submitForm(array &$form, FormStateInterface $form_state) {
+    if($form_state->getValue('confirm') && !empty($this->entityInfo)) {
+      $status_count = array($this->isTranslationCreated=>0, $this->isTranslationExists=>0, $this->isTranslationSourceNotExists=>0);
+      $from_language = $form_state->getValue('from_language');
+      $to_language = $form_state->getValue('to_language');
+      $force = $form_state->getValue('force_translation');
 
-    return $return_as_object ? $result : $result->isAllowed();
+      foreach ($this->entityInfo as $id => $entity) {
+        $status_count[$this->createTranslation($entity, $from_language, $to_language, $force)]++;
+      }
+
+      if($status_count[$this->isTranslationCreated]) {
+        $this->logger('content')->notice('Created translations: @count.', array('@count' => $status_count[$this->isTranslationCreated]));
+        drupal_set_message($this->t('Created @count translations.', array('@count' => $status_count[$this->isTranslationCreated])));
+      }
+      if($status_count[$this->isTranslationExists]) {
+        drupal_set_message($this->t('Skipped @count, because target language @tlng already existed.', array('@count' => $status_count[$this->isTranslationExists], '@tlng' => $to_language)));
+      }
+      if($status_count[$this->isTranslationSourceNotExists]) {
+        drupal_set_message($this->t('Skipped @count, because source language @flng didn\'t exist.', array('@count' => $status_count[$this->isTranslationSourceNotExists], '@flng' => $from_language)));
+      }
+    }
+
+    $form_state->setRedirect('system.admin_content');
   }
+
+  /**
+   * Creates a translation for an content entity.
+   *
+   * @param \Drupal\Core\Entity\ContentEntityBase $entity
+   * @param string $from_language
+   *   Language code e.g. 'en'
+   * @param string $to_language
+   * @param bool $force
+   *   Delete and recreate an existing translation instead of skipping
+   * @return int status
+  */
+  private function createTranslation(ContentEntityBase $entity, $from_language, $to_language, $force) {
+    if (!$entity->hasTranslation($from_language)) {
+      return $this->isTranslationSourceNotExists;
+    }
+
+    if ($entity->hasTranslation($to_language)) {
+      if ($force) {
+        $entity->removeTranslation($to_language);
+      }
+      else {
+        return $this->isTranslationExists;
+      }
+    }
+
+    $sourceTranslation = $entity->getTranslation($from_language);
+
+    if ($sourceTranslation->hasField('field_paragraph') && !empty($sourceTranslation->field_paragraph)) {
+      foreach ($sourceTranslation->field_paragraph as &$paragraph) {
+        $paragraph = $paragraph->entity;
+
+        if (!$paragraph->hasTranslation($from_language)) {
+          return $this->isTranslationSourceNotExists;
+        }
+
+        if ($paragraph->hasTranslation($to_language)) {
+          if ($force) {
+            $paragraph->removeTranslation($to_language);
+          }
+          else {
+            return $this->isTranslationExists;
+          }
+        }
+
+        $paragraphSourceTranslation = $paragraph->getTranslation($from_language)->toArray();
+        if (!$paragraph->hasTranslation($to_language)) {
+          $paragraph_translation = $paragraph->addTranslation($to_language, $paragraphSourceTranslation);
+          $paragraph_translation->save();
+        }
+        $paragraph->save();
+      }
+    }
+
+    /* @var \Drupal\Core\Entity\EntityInterface $translation */
+    $translation = $entity->addTranslation($to_language, $sourceTranslation->toArray());
+    $translation->save();
+    return $this->isTranslationCreated;
+  }
+
 }
+
