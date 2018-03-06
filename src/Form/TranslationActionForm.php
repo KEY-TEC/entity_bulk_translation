@@ -158,7 +158,8 @@ class TranslationActionForm extends ConfirmFormBase {
    * {@inheritdoc}
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
-    if($form_state->getValue('fromLanguage') == $form_state->getValue('toLanguage')) {
+    $values = $form_state->getValues();
+    if($values['from_language'] == $values['to_language']) {
       $form_state->setErrorByName('toLanguage', $this->t('The source language and target language cannot be the same.'));
     }
   }
@@ -204,19 +205,46 @@ class TranslationActionForm extends ConfirmFormBase {
    * @return int status
   */
   private function createTranslation(ContentEntityBase $entity, $from_language, $to_language, $force) {
-    if(!$entity->hasTranslation($from_language)) {
+    if (!$entity->hasTranslation($from_language)) {
       return $this->isTranslationSourceNotExists;
     }
 
-    if($entity->hasTranslation($to_language)) {
-      if($force) {
+    if ($entity->hasTranslation($to_language)) {
+      if ($force) {
         $entity->removeTranslation($to_language);
-      }else {
+      }
+      else {
         return $this->isTranslationExists;
       }
     }
 
     $sourceTranslation = $entity->getTranslation($from_language);
+
+    if ($sourceTranslation->hasField('field_paragraph') && !empty($sourceTranslation->field_paragraph)) {
+      foreach ($sourceTranslation->field_paragraph as &$paragraph) {
+        $paragraph = $paragraph->entity;
+
+        if (!$paragraph->hasTranslation($from_language)) {
+          return $this->isTranslationSourceNotExists;
+        }
+
+        if ($paragraph->hasTranslation($to_language)) {
+          if ($force) {
+            $paragraph->removeTranslation($to_language);
+          }
+          else {
+            return $this->isTranslationExists;
+          }
+        }
+
+        $paragraphSourceTranslation = $paragraph->getTranslation($from_language)->toArray();
+        if (!$paragraph->hasTranslation($to_language)) {
+          $paragraph_translation = $paragraph->addTranslation($to_language, $paragraphSourceTranslation);
+          $paragraph_translation->save();
+        }
+        $paragraph->save();
+      }
+    }
 
     /* @var \Drupal\Core\Entity\EntityInterface $translation */
     $translation = $entity->addTranslation($to_language, $sourceTranslation->toArray());
@@ -225,3 +253,5 @@ class TranslationActionForm extends ConfirmFormBase {
   }
 
 }
+
+
